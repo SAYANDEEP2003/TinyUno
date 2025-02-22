@@ -52,5 +52,8 @@ Tasks are defined in `test.ino`. Example tasks (`task1`, `task2`, etc.) are prov
          last = millis();
      }
  }
+```
+
 2. Registering the task in setup():
-scheduler_register_task("mytask", myTask);
+   
+`scheduler_register_task("mytask", myTask);`
