@@ -42,7 +42,7 @@ halt task1
 ---
 
 ## **Task Definitions**
-Tasks are defined in `test.ino`. Example tasks (`task1`, `task2`, etc.) are provided for testing. You can add your own tasks by:
+Tasks are defined in `Scheduler_serial_monitor.ino`. Example tasks (`task1`, `task2`, etc.) are provided for testing. You can add your own tasks by:
 1. Defining the task function:
  ```cpp
  void myTask() {
