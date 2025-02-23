@@ -1,8 +1,6 @@
 #include "scheduler.h"
-#include <Arduino.h>
 #include <string.h>
 
-// Global variables (identical to your original .ino)
 ScheduledTask taskList[MAX_TASKS];
 RegisteredTask registeredTasks[MAX_REGISTERED_TASKS];
 int taskCount = 0;
@@ -10,65 +8,50 @@ int registeredTaskCount = 0;
 bool isPaused = false;
 char commandBuffer[CMD_BUFFER_SIZE];
 
-// Original functions (copied verbatim)
 void scheduler_init() {
     taskCount = 0;
+    registeredTaskCount = 0;
     isPaused = false;
+    memset(commandBuffer, 0, CMD_BUFFER_SIZE);
 }
 
 void scheduler_register_task(const char* name, TaskFunction function) {
-    if (registeredTaskCount >= MAX_REGISTERED_TASKS) return;
-    strncpy(registeredTasks[registeredTaskCount].name, name, 19);
-    registeredTasks[registeredTaskCount].function = function;
-    registeredTaskCount++;
+    if (registeredTaskCount < MAX_REGISTERED_TASKS) {
+        strncpy(registeredTasks[registeredTaskCount].name, name, 19);
+        registeredTasks[registeredTaskCount].function = function;
+        registeredTaskCount++;
+    }
 }
 
-void scheduler_add_task(const char* name, int priority, unsigned long interval) {
+void scheduler_add_task(const char* name, unsigned long duration, int priority) {
     if (taskCount >= MAX_TASKS) return;
 
-    TaskFunction func = nullptr;
+    // Find the registered task by name
+    TaskFunction taskFunction = nullptr;
     for (int i = 0; i < registeredTaskCount; i++) {
         if (strcmp(registeredTasks[i].name, name) == 0) {
-            func = registeredTasks[i].function;
+            taskFunction = registeredTasks[i].function;
             break;
         }
     }
-    if (!func) {
-        Serial.println("Error: Task not registered");
-        return;
+
+    if (taskFunction != nullptr) {
+        strncpy(taskList[taskCount].name, name, 19);
+        taskList[taskCount].function = taskFunction;
+        taskList[taskCount].duration = duration;
+        taskList[taskCount].startTime = 0;
+        taskList[taskCount].endTime = 0;
+        taskList[taskCount].priority = priority;
+        taskList[taskCount].active = true;
+        taskCount++;
     }
-
-    if (priority == -1) {
-        int minPriority = 0;
-        for (int i = 0; i < taskCount; i++) {
-            if (taskList[i].priority < minPriority) minPriority = taskList[i].priority;
-        }
-        priority = minPriority - 1;
-    }
-
-    int i = taskCount - 1;
-    while (i >= 0 && taskList[i].priority < priority) {
-        taskList[i + 1] = taskList[i];
-        i--;
-    }
-
-    strncpy(taskList[i+1].name, name, 19);
-    taskList[i+1].function = func;
-    taskList[i+1].interval = interval;
-    taskList[i+1].priority = priority;
-    taskList[i+1].lastRun = millis();
-    taskList[i+1].active = true;
-    taskCount++;
-
-    Serial.print("Added task: ");
-    Serial.println(name);
 }
 
 void scheduler_remove_task(const char* name) {
     for (int i = 0; i < taskCount; i++) {
         if (strcmp(taskList[i].name, name) == 0) {
-            for (int j = i; j < taskCount-1; j++) {
-                taskList[j] = taskList[j+1];
+            for (int j = i; j < taskCount - 1; j++) {
+                taskList[j] = taskList[j + 1];
             }
             taskCount--;
             Serial.print("Removed task: ");
@@ -80,13 +63,35 @@ void scheduler_remove_task(const char* name) {
 }
 
 void scheduler_run() {
-    if (isPaused) return;
+    if (isPaused || taskCount == 0) return;
     unsigned long currentMillis = millis();
-    
+
+    // Find the highest priority active task
+    int highestPriority = -1;
+    int highestPriorityIndex = -1;
     for (int i = 0; i < taskCount; i++) {
-        if (taskList[i].active && (currentMillis - taskList[i].lastRun >= taskList[i].interval)) {
-            taskList[i].function();
-            taskList[i].lastRun = currentMillis;
+        if (taskList[i].active && (highestPriority == -1 || taskList[i].priority < highestPriority)) {
+            highestPriority = taskList[i].priority;
+            highestPriorityIndex = i;
+        }
+    }
+
+    // Execute the highest priority active task
+    if (highestPriorityIndex != -1) {
+        ScheduledTask* task = &taskList[highestPriorityIndex];
+        if (task->startTime == 0) {
+            task->startTime = currentMillis;
+            task->endTime = task->startTime + task->duration;
+        }
+
+        // Run the task function
+        task->function();
+
+        // Check if duration has elapsed
+        if (currentMillis >= task->endTime) {
+            task->active = false; // Deactivate the task
+            task->startTime = 0;
+            task->endTime = 0;
         }
     }
 }
@@ -97,12 +102,10 @@ void scheduler_inspect() {
     for (int i = 0; i < taskCount; i++) {
         Serial.print("Name: ");
         Serial.print(taskList[i].name);
-        Serial.print(" | Priority: ");
-        Serial.print(taskList[i].priority);
-        Serial.print(" | Interval: ");
-        Serial.print(taskList[i].interval);
-        Serial.print("ms | Active: ");
-        Serial.println(taskList[i].active ? "Yes" : "No");
+        Serial.print(" | Duration: ");
+        Serial.print(taskList[i].duration);
+        Serial.print("ms | Priority: ");
+        Serial.println(taskList[i].priority);
     }
     Serial.println("-----------------");
 }
@@ -112,41 +115,51 @@ void scheduler_handle_command() {
 
     while (Serial.available() > 0) {
         char c = Serial.read();
-        if (c == '\n' || bufferIndex >= CMD_BUFFER_SIZE-1) {
+        if (c == '\n' || bufferIndex >= CMD_BUFFER_SIZE - 1) {
             commandBuffer[bufferIndex] = '\0';
             bufferIndex = 0;
 
             char cmd[10];
             char taskName[20];
-            int priority = -1;
-            unsigned long interval = 0;
+            unsigned long duration = DEFAULT_DURATION;
+            int priority = -1; // Default to -1 to indicate no priority given
 
             sscanf(commandBuffer, "%s", cmd);
 
             if (strcmp(cmd, "exec") == 0) {
                 char* ptr = commandBuffer + 4;
                 sscanf(ptr, "%s", taskName);
-                
+
+                // Parse parameters like "-t 5000 -p 2"
                 char* param = strtok(ptr, " ");
                 while ((param = strtok(NULL, " ")) != NULL) {
-                    if (strcmp(param, "-p") == 0) {
+                    if (strcmp(param, "-t") == 0) {
+                        duration = atol(strtok(NULL, " "));
+                    } else if (strcmp(param, "-p") == 0) {
                         priority = atoi(strtok(NULL, " "));
                     }
-                    if (strcmp(param, "-t") == 0) {
-                        interval = atol(strtok(NULL, " "));
-                    }
                 }
-                
-                scheduler_add_task(taskName, priority, interval);
-            }
-            else if (strcmp(cmd, "halt") == 0) {
+
+                // If no priority is given, set it to one less than the lowest priority
+                if (priority == -1) {
+                    priority = MAX_TASKS;
+                    for (int i = 0; i < taskCount; i++) {
+                        if (taskList[i].priority < priority) {
+                            priority = taskList[i].priority;
+                        }
+                    }
+                    priority--;
+                }
+
+                scheduler_add_task(taskName, duration, priority);
+                Serial.print("Added task: ");
+                Serial.println(taskName);
+            } else if (strcmp(cmd, "halt") == 0) {
                 sscanf(commandBuffer + 5, "%s", taskName);
                 scheduler_remove_task(taskName);
-            }
-            else if (strcmp(cmd, "inspect") == 0) {
+            } else if (strcmp(cmd, "inspect") == 0) {
                 scheduler_inspect();
-            }
-            else if (strcmp(cmd, "cont") == 0) {
+            } else if (strcmp(cmd, "cont") == 0) {
                 isPaused = false;
                 Serial.println("Resuming execution...");
             }

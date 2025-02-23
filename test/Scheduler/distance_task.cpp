@@ -1,18 +1,17 @@
 #include "distance_task.h"
-#include <Arduino.h> // Add this line
+#include <Arduino.h>
 
+// Example for an ultrasonic sensor (HC-SR04)
 const int trigPin = 9;
 const int echoPin = 10;
 
 void setup_distance_sensor() {
-  pinMode(trigPin, OUTPUT);
-  pinMode(echoPin, INPUT);
+    pinMode(trigPin, OUTPUT);
+    pinMode(echoPin, INPUT);
 }
 
 void distance_task_wrapper() {
-  static unsigned long last_measure = 0;
-  
-  if (millis() - last_measure >= 200) {
+    // Measure distance (example logic)
     digitalWrite(trigPin, LOW);
     delayMicroseconds(2);
     digitalWrite(trigPin, HIGH);
@@ -21,10 +20,7 @@ void distance_task_wrapper() {
 
     long duration = pulseIn(echoPin, HIGH);
     int distance = duration * 0.034 / 2;
-    
+
     Serial.print("Distance: ");
     Serial.println(distance);
-    
-    last_measure = millis();
-  }
 }

@@ -4,26 +4,27 @@
 #include <Arduino.h>
 
 #define MAX_TASKS 10
-#define CMD_BUFFER_SIZE 64
 #define MAX_REGISTERED_TASKS 10
+#define CMD_BUFFER_SIZE 100
+#define DEFAULT_DURATION 3000
 
 typedef void (*TaskFunction)();
 
-typedef struct {
-    TaskFunction function;
-    char name[20];
-    unsigned long interval;
-    unsigned long lastRun;
-    int priority;
-    bool active;
-} ScheduledTask;
+struct ScheduledTask {
+    char name[20];           // Task name
+    TaskFunction function;   // Task function
+    unsigned long duration;  // Time to run per cycle (ms)
+    unsigned long startTime; // Time when the task started running
+    unsigned long endTime;   // Time when the task should stop running
+    int priority;            // Priority (higher = first)
+    bool active;             // Whether the task is active
+};
 
-typedef struct {
-    char name[20];
-    TaskFunction function;
-} RegisteredTask;
+struct RegisteredTask {
+    char name[20];           // Registered task name
+    TaskFunction function;   // Registered function
+};
 
-// Global variables declaration (extern)
 extern ScheduledTask taskList[MAX_TASKS];
 extern RegisteredTask registeredTasks[MAX_REGISTERED_TASKS];
 extern int taskCount;
@@ -31,10 +32,9 @@ extern int registeredTaskCount;
 extern bool isPaused;
 extern char commandBuffer[CMD_BUFFER_SIZE];
 
-// Function prototypes (unchanged from original)
 void scheduler_init();
 void scheduler_register_task(const char* name, TaskFunction function);
-void scheduler_add_task(const char* name, int priority, unsigned long interval);
+void scheduler_add_task(const char* name, unsigned long duration, int priority);
 void scheduler_remove_task(const char* name);
 void scheduler_run();
 void scheduler_inspect();

@@ -1,17 +1,21 @@
 #include "led_task.h"
-#include <Arduino.h> // Add this line
+#include <Arduino.h>
 
 void setup_led() {
-  pinMode(LED_BUILTIN, OUTPUT);
+    pinMode(LED_BUILTIN, OUTPUT);
+    digitalWrite(LED_BUILTIN, LOW);
 }
 
 void led_task_wrapper() {
-  static unsigned long last_toggle = 0;
-  static bool led_state = LOW;
-  
-  if (millis() - last_toggle >= 1000) {
-    led_state = !led_state;
-    digitalWrite(LED_BUILTIN, led_state);
-    last_toggle = millis();
-  }
+    static unsigned long lastToggle = 0;
+    static bool state = LOW;
+
+    unsigned long currentMillis = millis();
+
+    // Toggle every 100ms while active
+    if (currentMillis - lastToggle >= 100) {
+        state = !state;
+        digitalWrite(LED_BUILTIN, state);
+        lastToggle = currentMillis;
+    }
 }
