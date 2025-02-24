@@ -66,33 +66,29 @@ void scheduler_run() {
     if (isPaused || taskCount == 0) return;
     unsigned long currentMillis = millis();
 
-    // Find the highest priority active task
-    int highestPriority = -1;
-    int highestPriorityIndex = -1;
-    for (int i = 0; i < taskCount; i++) {
-        if (taskList[i].active && (highestPriority == -1 || taskList[i].priority < highestPriority)) {
-            highestPriority = taskList[i].priority;
-            highestPriorityIndex = i;
-        }
+    // Find the next task to run based on round-robin scheduling
+    static int currentTaskIndex = 0;
+    ScheduledTask* task = &taskList[currentTaskIndex];
+
+    if (task->startTime == 0) {
+        task->startTime = currentMillis;
+        task->endTime = task->startTime + task->duration;
     }
 
-    // Execute the highest priority active task
-    if (highestPriorityIndex != -1) {
-        ScheduledTask* task = &taskList[highestPriorityIndex];
-        if (task->startTime == 0) {
-            task->startTime = currentMillis;
-            task->endTime = task->startTime + task->duration;
-        }
+    // Run the task function
+    task->function();
 
-        // Run the task function
-        task->function();
+    // Check if duration has elapsed
+    if (currentMillis >= task->endTime) {
+        task->active = false; // Deactivate the task
+        task->startTime = 0;
+        task->endTime = 0;
 
-        // Check if duration has elapsed
-        if (currentMillis >= task->endTime) {
-            task->active = false; // Deactivate the task
-            task->startTime = 0;
-            task->endTime = 0;
-        }
+        // Move to the next task in the list
+        currentTaskIndex = (currentTaskIndex + 1) % taskCount;
+
+        // Reactivate the next task
+        taskList[currentTaskIndex].active = true;
     }
 }
 
