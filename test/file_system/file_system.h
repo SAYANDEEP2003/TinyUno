@@ -31,5 +31,10 @@ typedef struct {
 int fs_format();   // Format the file system
 int fs_mount();    // Mount the file system
 void fs_print_info();  // Print file system metadata for debugging
+int fs_create(const char* filename, uint32_t size);
+int fs_write(const char* filename, const uint8_t* data, uint32_t size);
+int fs_read(const char* filename, uint8_t* buffer, uint32_t size);
+int fs_delete(const char* filename);
+void fs_list();
 
 #endif  // FILE_SYSTEM_H
