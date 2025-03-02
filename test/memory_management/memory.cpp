@@ -27,11 +27,18 @@ typedef struct {
 static MemoryManager mem;
 
 MemoryStatus initMemoryPool(size_t heap_size, bool use_guards) {
+    // Check for invalid heap size
+    if (heap_size == 0) {
+        return MEM_INVALID_SIZE;
+    }
+
     // Initialize heap boundaries
     mem.heap_start = malloc(heap_size);
     if (mem.heap_start == NULL) {
         return MEM_OUT_OF_HEAP;
     }
+
+    // Rest of the function remains the same
     mem.heap_size = heap_size;
     mem.free_list = (AllocHeader*)mem.heap_start;
     mem.free_list->size = heap_size;
@@ -45,7 +52,8 @@ MemoryStatus initMemoryPool(size_t heap_size, bool use_guards) {
 
     // Configure guard pages if enabled
     if (use_guards) {
-        // Implement guard page setup
+        // Placeholder for guard page implementation
+        //yet to be implemented
     }
 
     return MEM_OK;
