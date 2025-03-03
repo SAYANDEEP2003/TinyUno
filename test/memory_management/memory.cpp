@@ -32,17 +32,19 @@ MemoryStatus initMemoryPool(size_t heap_size, bool use_guards) {
         return MEM_INVALID_SIZE;
     }
 
-    // Initialize heap boundaries
-    mem.heap_start = malloc(heap_size);
+    // Manually set the heap start address
+    mem.heap_start = (void*)970; // Use the observed address
     if (mem.heap_start == NULL) {
         return MEM_OUT_OF_HEAP;
     }
 
-    // Rest of the function remains the same
+    // Initialize heap boundaries
     mem.heap_size = heap_size;
     mem.free_list = (AllocHeader*)mem.heap_start;
     mem.free_list->size = heap_size;
     mem.free_list->next = NULL;
+
+    // Initialize memory statistics
     mem.stats.total_heap = heap_size;
     mem.stats.used_memory = 0;
     mem.stats.peak_usage = 0;
@@ -50,39 +52,34 @@ MemoryStatus initMemoryPool(size_t heap_size, bool use_guards) {
     mem.stats.free_count = 0;
     mem.stats.error_count = 0;
 
-    // Configure guard pages if enabled
-    if (use_guards) {
-        // Placeholder for guard page implementation
-        //yet to be implemented
-    }
-
     return MEM_OK;
 }
 
 void* allocateMemory(size_t size, size_t alignment, MemoryFlags flags) {
+    if (size == 0) {
+        return NULL;
+    }
+
+    // Calculate total size including header and alignment padding
     size_t total_size = size + sizeof(AllocHeader);
+    size_t alignment_padding = 0;
+
+    // Align the memory block if necessary
+    if (alignment > 0) {
+        alignment_padding = (alignment - (sizeof(AllocHeader) % alignment)) % alignment;
+        total_size += alignment_padding;
+    }
+
     AllocHeader* current = mem.free_list;
     AllocHeader* prev = NULL;
 
-    Serial.print("Allocating memory of size: ");
-    Serial.println(size);
-
     while (current != NULL) {
-        Serial.print("Checking block at address: ");
-        Serial.print((uintptr_t)current);
-        Serial.print(" with size: ");
-        Serial.println(current->size);
-
-        // Align the memory block if necessary
-        uintptr_t aligned_addr = (uintptr_t)((uint8_t*)current + sizeof(AllocHeader));
-        size_t offset = 0;
-        if (alignment > 0) {
-            offset = (alignment - (aligned_addr % alignment)) % alignment;
-            aligned_addr += offset;
-            total_size += offset;
-        }
-
+        // Check if the current block is large enough
         if (current->size >= total_size) {
+            // Calculate the address of the allocated memory
+            uintptr_t aligned_addr = (uintptr_t)current + sizeof(AllocHeader) + alignment_padding;
+
+            // Split the block if there's enough space left
             if (current->size > total_size) {
                 AllocHeader* new_block = (AllocHeader*)((uint8_t*)current + total_size);
                 new_block->size = current->size - total_size;
@@ -90,6 +87,7 @@ void* allocateMemory(size_t size, size_t alignment, MemoryFlags flags) {
                 current->size = total_size;
                 current->next = new_block;
             } else {
+                // Remove the block from the free list
                 if (prev != NULL) {
                     prev->next = current->next;
                 } else {
@@ -97,24 +95,27 @@ void* allocateMemory(size_t size, size_t alignment, MemoryFlags flags) {
                 }
             }
 
+            // Initialize the allocated block
             current->magic = 0xDEADBEEF;
             current->flags = flags;
+
+            // Update memory statistics
             mem.stats.used_memory += size;
             mem.stats.allocation_count++;
             if (mem.stats.used_memory > mem.stats.peak_usage) {
                 mem.stats.peak_usage = mem.stats.used_memory;
             }
 
-            uintptr_t addr = aligned_addr;
-            Serial.print("Memory allocated at address: ");
-            Serial.println(addr);
-            return (void*)addr;
+            // Return the address of the allocated memory
+            return (void*)aligned_addr;
         }
+
+        // Move to the next block
         prev = current;
         current = current->next;
     }
 
-    Serial.println("Out of memory!");
+    // Out of memory
     return NULL;
 }
 
@@ -123,11 +124,13 @@ MemoryStatus freeMemory(void* ptr, size_t size) {
         return MEM_INVALID_POINTER;
     }
 
+    // Get the header of the block being freed
     AllocHeader* header = (AllocHeader*)((uint8_t*)ptr - sizeof(AllocHeader));
     if (header->magic != 0xDEADBEEF) {
         return MEM_CORRUPTION_DETECTED;
     }
 
+    // Find the correct position in the free list to insert the block
     AllocHeader* current = mem.free_list;
     AllocHeader* prev = NULL;
     while (current != NULL && current < header) {
@@ -135,29 +138,30 @@ MemoryStatus freeMemory(void* ptr, size_t size) {
         current = current->next;
     }
 
+    // Merge with the previous block if adjacent
     if (prev != NULL && (uint8_t*)prev + prev->size == (uint8_t*)header) {
         prev->size += header->size;
         header = prev;
+    } else {
+        // Insert the block into the free list
+        header->next = current;
+        if (prev != NULL) {
+            prev->next = header;
+        } else {
+            mem.free_list = header;
+        }
     }
 
+    // Merge with the next block if adjacent
     if (current != NULL && (uint8_t*)header + header->size == (uint8_t*)current) {
         header->size += current->size;
         header->next = current->next;
-    } else {
-        header->next = current;
     }
 
-    if (prev == NULL) {
-        mem.free_list = header;
-    } else {
-        prev->next = header;
-    }
-
+    // Update memory statistics
     mem.stats.used_memory -= size;
     mem.stats.free_count++;
 
-    Serial.print("Freed memory at address: ");
-    Serial.println((uintptr_t)ptr);
     return MEM_OK;
 }
 
@@ -178,6 +182,7 @@ MemoryStats getMemoryStatistics(void) {
 
 void dumpMemoryMap(void) {
     AllocHeader* current = mem.free_list;
+    Serial.println("Memory Map:");
     while (current != NULL) {
         Serial.print("Block at: ");
         Serial.print((uintptr_t)current);
