@@ -1,21 +1,21 @@
 #ifndef MEMORY_H
 #define MEMORY_H
 
-#include <stddef.h>     // For size_t
-#include <stdint.h>     // For uint32_t etc
-#include "common.h"     // For kernel-specific types
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
 
-// Memory alignment requirement (architecture-specific)
+// Memory alignment requirement
 #define MEM_ALIGNMENT 8
 
-// Memory protection flags
+// Memory protection flags (for future expansion)
 typedef enum {
-    MEM_READ = 0x01,
+    MEM_READ  = 0x01,
     MEM_WRITE = 0x02,
-    MEM_EXEC = 0x04
+    MEM_EXEC  = 0x04
 } MemoryFlags;
 
-// Error codes
+// Error codes / Memory status
 typedef enum {
     MEM_OK = 0,
     MEM_INVALID_SIZE,
@@ -35,26 +35,63 @@ typedef struct {
     uint32_t error_count;
 } MemoryStats;
 
-// Initializes memory pool with optional guard pages
+// Core Functions
+
+/**
+ * Initializes the memory pool.
+ * @param heap_size Total size of the memory pool.
+ * @param use_guards Boolean flag indicating if guard pages should be used (ignored in this simple version).
+ * @return MemoryStatus code.
+ */
 MemoryStatus initMemoryPool(size_t heap_size, bool use_guards);
 
-// Enhanced allocation with alignment and protection flags
+/**
+ * Allocates memory with specified size and alignment.
+ * @param size Requested size of memory to allocate.
+ * @param alignment Required memory alignment.
+ * @param flags Memory protection flags (currently ignored).
+ * @return Pointer to allocated memory or NULL on failure.
+ */
 void* allocateMemory(size_t size, size_t alignment, MemoryFlags flags);
 
-// Safe memory free with integrity checks
+/**
+ * Frees allocated memory.
+ * @param ptr Pointer to the memory block to free.
+ * @param size The requested size originally allocated (used for updating statistics).
+ * @return MemoryStatus code.
+ */
 MemoryStatus freeMemory(void* ptr, size_t size);
 
-// Memory protection management
-MemoryStatus protectMemoryRegion(void* addr, size_t size, MemoryFlags flags);
+// Diagnostic Functions
 
-// Diagnostic functions
+/**
+ * Checks the integrity of the heap.
+ * @return MemoryStatus code.
+ */
 MemoryStatus checkHeapIntegrity(void);
+
+/**
+ * Returns current memory usage statistics.
+ * @return MemoryStats structure.
+ */
 MemoryStats getMemoryStatistics(void);
+
+/**
+ * Dumps a simple memory map to the debug console.
+ */
 void dumpMemoryMap(void);
 
-// Debugging utilities
+// Debugging Utilities
 #ifdef MEM_DEBUG
+/**
+ * Lists current allocations (debug info; not fully implemented).
+ */
 void listAllocations(void);
+
+/**
+ * Sets a breakpoint based on the allocation count (debug utility).
+ * @param count Allocation count at which to trigger a breakpoint.
+ */
 void setAllocBreakpoint(size_t count);
 #endif
 
