@@ -5,8 +5,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// Memory alignment requirement
-#define MEM_ALIGNMENT 8
+// Define the fixed block size in bytes.
+#define BLOCK_SIZE 32
 
 // Memory protection flags (for future expansion)
 typedef enum {
@@ -18,11 +18,10 @@ typedef enum {
 // Error codes / Memory status
 typedef enum {
     MEM_OK = 0,
-    MEM_INVALID_SIZE,
+    MEM_INVALID_POINTER,
     MEM_OUT_OF_HEAP,
     MEM_DOUBLE_FREE,
-    MEM_CORRUPTION_DETECTED,
-    MEM_INVALID_POINTER
+    MEM_CORRUPTION_DETECTED
 } MemoryStatus;
 
 // Memory statistics structure
@@ -40,27 +39,24 @@ typedef struct {
 /**
  * Initializes the memory pool.
  * @param heap_size Total size of the memory pool.
- * @param use_guards Boolean flag indicating if guard pages should be used (ignored in this simple version).
+ * @param use_guards Boolean flag indicating if guard pages should be used (ignored in this version).
  * @return MemoryStatus code.
  */
 MemoryStatus initMemoryPool(size_t heap_size, bool use_guards);
 
 /**
- * Allocates memory with specified size and alignment.
- * @param size Requested size of memory to allocate.
- * @param alignment Required memory alignment.
+ * Allocates a fixed block of memory (32 bytes).
  * @param flags Memory protection flags (currently ignored).
  * @return Pointer to allocated memory or NULL on failure.
  */
-void* allocateMemory(size_t size, size_t alignment, MemoryFlags flags);
+void* allocateMemory(MemoryFlags flags);
 
 /**
- * Frees allocated memory.
+ * Frees an allocated memory block.
  * @param ptr Pointer to the memory block to free.
- * @param size The requested size originally allocated (used for updating statistics).
  * @return MemoryStatus code.
  */
-MemoryStatus freeMemory(void* ptr, size_t size);
+MemoryStatus freeMemory(void* ptr);
 
 // Diagnostic Functions
 

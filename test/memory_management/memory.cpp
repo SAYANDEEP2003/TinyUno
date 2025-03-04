@@ -14,85 +14,65 @@ MemoryStatus initMemoryPool(size_t heap_size, bool use_guards) {
     memStats.free_count = 0;
     memStats.error_count = 0;
 
-    // Note: 'use_guards' is not used in this simple version.
+    // In a more complex system, you might initialize your own memory pool here.
     Serial.print("Memory pool initialized with size: ");
     Serial.println(heap_size);
     return MEM_OK;
 }
 
-// Allocates memory with the requested size and alignment.
-// Flags are provided for future memory protection support but are currently ignored.
-void* allocateMemory(size_t size, size_t alignment, MemoryFlags flags) {
-    if (size == 0) {
-        memStats.error_count++;
-        Serial.println("Allocation error: size is 0");
-        return NULL;
-    }
-
-    // Adjust the requested size to meet the defined alignment
-    size_t aligned_size = (size + MEM_ALIGNMENT - 1) & ~(MEM_ALIGNMENT - 1);
-
-    void* ptr = malloc(aligned_size);
+// Allocates a fixed block of memory (32 bytes).
+void* allocateMemory(MemoryFlags flags) {
+    // For fixed block allocation, ignore parameters and allocate BLOCK_SIZE bytes.
+    void* ptr = malloc(BLOCK_SIZE);
     if (ptr == NULL) {
         memStats.error_count++;
         Serial.println("Memory allocation failed!");
         return NULL;
     }
 
-    memStats.used_memory += aligned_size;
+    memStats.used_memory += BLOCK_SIZE;
     if (memStats.used_memory > memStats.peak_usage) {
         memStats.peak_usage = memStats.used_memory;
     }
     memStats.allocation_count++;
 
-    // Print requested size and aligned size for clarity
-    Serial.print("Allocated ");
-    Serial.print(size);
-    Serial.print(" bytes (aligned: ");
-    Serial.print(aligned_size);
-    Serial.print(") at address: ");
+    Serial.print("Allocated fixed block of ");
+    Serial.print(BLOCK_SIZE);
+    Serial.print(" bytes at address: ");
     Serial.println((uintptr_t)ptr, HEX);
 
 #ifdef MEM_DEBUG
-    // In a more advanced version, record allocation details for debugging.
+    // Additional debug info could be recorded here.
 #endif
 
     return ptr;
 }
 
-// Frees the allocated memory and updates statistics.
-// The 'size' parameter should be the originally requested size.
-MemoryStatus freeMemory(void* ptr, size_t size) {
+// Frees the allocated fixed block of memory.
+MemoryStatus freeMemory(void* ptr) {
     if (ptr == NULL) {
         memStats.error_count++;
         Serial.println("Free error: Invalid pointer!");
         return MEM_INVALID_POINTER;
     }
 
-    // Adjust the size to the same alignment as in allocateMemory
-    size_t aligned_size = (size + MEM_ALIGNMENT - 1) & ~(MEM_ALIGNMENT - 1);
-
     free(ptr);
-    if (memStats.used_memory >= aligned_size) {
-        memStats.used_memory -= aligned_size;
+    if (memStats.used_memory >= BLOCK_SIZE) {
+        memStats.used_memory -= BLOCK_SIZE;
     } else {
         memStats.used_memory = 0;
     }
     memStats.free_count++;
 
-    // Print freed size information for clarity
-    Serial.print("Freed ");
-    Serial.print(size);
-    Serial.print(" bytes (aligned: ");
-    Serial.print(aligned_size);
-    Serial.print(") at address: ");
+    Serial.print("Freed fixed block of ");
+    Serial.print(BLOCK_SIZE);
+    Serial.print(" bytes at address: ");
     Serial.println((uintptr_t)ptr, HEX);
 
     return MEM_OK;
 }
 
 // Performs a basic check of the heap's integrity.
-// In a real system, this would include more extensive checks.
 MemoryStatus checkHeapIntegrity(void) {
     Serial.println("Heap integrity check: OK");
     return MEM_OK;
@@ -123,15 +103,13 @@ void dumpMemoryMap(void) {
 
 #ifdef MEM_DEBUG
 // Debugging utility: Lists current allocations.
-// This is a placeholder for extended debugging support.
 void listAllocations(void) {
     Serial.println("Debug: Listing allocations (not implemented).");
 }
 
-// Debugging utility: Sets an allocation breakpoint (for debugging purposes).
+// Debugging utility: Sets an allocation breakpoint.
 void setAllocBreakpoint(size_t count) {
     Serial.print("Debug: Allocation breakpoint set at count: ");
     Serial.println(count);
-    // In an actual implementation, you might trigger a breakpoint or log additional details here.
 }
 #endif
